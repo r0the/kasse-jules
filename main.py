@@ -7,11 +7,10 @@ from PIL import ImageFont
 
 
 def main():
-    d = display.Display()
-    d.clear()
-    time.sleep(2)
-    d.text(10, 10, "Hallo Jules")
-    d.show(fast=True)
+    display.clear()
+    display.text(10, 10, "Kasse von Jules")
+    display.text(10, 60, "Version 0.1")
+    display.show(fast=True)
 
 
 if __name__ == '__main__':
