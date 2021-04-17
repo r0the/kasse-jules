@@ -32,7 +32,7 @@ import time
 BUSY_PIN = 24
 CS_PIN = 8
 DC_PIN = 25
-RESET_PIN = 17
+RESET_PIN = 7
 
 # GDEW042T2 commands
 PANEL_SETTING                               = 0x00
