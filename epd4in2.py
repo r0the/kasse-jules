@@ -25,11 +25,14 @@
  # THE SOFTWARE.
  #
 
-from PIL import Image
-from epdif import EPDIf
-import time
-import spidev
 import RPi.GPIO as GPIO
+import spidev
+import time
+
+BUSY_PIN = 24
+CS_PIN = 8
+DC_PIN = 25
+RESET_PIN = 17
 
 # GDEW042T2 commands
 PANEL_SETTING                               = 0x00
@@ -159,92 +162,130 @@ REFRESH_FAST = [
     ]
 ]
 
-class EPD(EPDIf):
-    def __init__(self, **kvargs):
-        EPDIf.__init__(self, **kvargs)
-        self.width = 400
-        self.height = 300
-        self.buffer = [0] * (self.width * self.height // 8)
-        self.lut = REFRESH_DEFAULT
+_buffer = None
+_spi = None
+width = 400
+height = 300
 
-    def init(self):
-        self.reset()
-        self.send_command(POWER_SETTING)
-        self.send_data(0x03)                  # VDS_EN, VDG_EN
-        self.send_data(0x00)                  # VCOM_HV, VGHL_LV[1], VGHL_LV[0]
-        self.send_data(0x2b)                  # VDH
-        self.send_data(0x2b)                  # VDL
-        self.send_data(0xff)                  # VDHR
-        self.send_command(BOOSTER_SOFT_START)
-        self.send_data(0x17)
-        self.send_data(0x17)
-        self.send_data(0x17)                  #07 0f 17 1f 27 2F 37 2f
-        self.send_command(POWER_ON)
-        self.wait_until_idle()
-        self.send_command(PANEL_SETTING)
-        self.send_data(0xbf) # KW-BF   KWR-AF  BWROTP 0f
-        self.send_data(0x0b)
-        self.send_command(PLL_CONTROL)
-        self.send_data(0x3c) # 3A 100HZ   29 150Hz 39 200HZ  31 171HZ
-        self.send_command(RESOLUTION_SETTING)
-        self.send_data(self.width >> 8)        
-        self.send_data(self.width & 0xff)
-        self.send_data(self.height >> 8)
-        self.send_data(self.height & 0xff)
-        self.send_command(VCM_DC_SETTING)
-        self.send_data(0x12)                   
-        self.send_command(VCOM_AND_DATA_INTERVAL_SETTING)
-        self.send_command(0x97)    #VBDF 17|D7 VBDW 97  VBDB 57  VBDF F7  VBDW 77  VBDB 37  VBDR B7
+def _init():
+    global _buffer
+    global _spi
+    global width
+    global height
+    _spi = spidev.SpiDev(0, 0)
+    _spi.max_speed_hz = 2000000
+    _spi.mode = 0b00
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+    GPIO.setup(BUSY_PIN, GPIO.IN)
+    GPIO.setup(CS_PIN, GPIO.OUT)
+    GPIO.setup(DC_PIN, GPIO.OUT)
+    GPIO.setup(RESET_PIN, GPIO.OUT)
+    width = 400
+    height = 300
+    _buffer = [0] * (width * height // 8)
 
-    def clear(self):
-        for i in range(len(self.buffer)):
-            self.buffer[i] = 0xFF
-        self.display_buffer()
+def _send_command(command):
+    GPIO.output(DC_PIN, GPIO.LOW)
+    _spi.writebytes([command])
+
+def _send_data(data):
+    GPIO.output(DC_PIN, GPIO.HIGH)
+    _spi.writebytes([data])
+
+def _sleep_ms(milliseconds):
+    time.sleep(milliseconds // 1000)
+
+def _wait_until_idle():
+    while GPIO.input(BUSY_PIN) == 0:
+        _sleep_ms(100)
+
+def _set_lut(lut):
+    for i in range(len(lut)):
+        _send_command(LUT_FOR_VCOM + i)
+        table = lut[i]
+        for j in range(len(table)):
+            _send_data(table[j])
+
+def _display_buffer(fast=False):
+    if fast:
+        _set_lut(REFRESH_FAST)
+    else:
+        _set_lut(REFRESH_DEFAULT)
+    _send_command(DATA_START_TRANSMISSION_1)
+    for i in range(len(_buffer)):
+        _send_data(0xFF)       # bit set: white, bit reset: black
+    _sleep_ms(2)
+    _send_command(DATA_START_TRANSMISSION_2) 
+    for i in range(len(_buffer)):
+        _send_data(_buffer[i])
+    _sleep_ms(2)
+    _send_command(DISPLAY_REFRESH)
+    if not fast:
+        _sleep_ms(100)
+        _wait_until_idle()
+
+def reset():
+    GPIO.output(RESET_PIN, GPIO.LOW)
+    _sleep_ms(200)
+    GPIO.output(RESET_PIN, GPIO.HIGH)
+    _sleep_ms(200)
+
+def init():
+    reset()
+    _send_command(POWER_SETTING)
+    _send_data(0x03)                  # VDS_EN, VDG_EN
+    _send_data(0x00)                  # VCOM_HV, VGHL_LV[1], VGHL_LV[0]
+    _send_data(0x2b)                  # VDH
+    _send_data(0x2b)                  # VDL
+    _send_data(0xff)                  # VDHR
+    _send_command(BOOSTER_SOFT_START)
+    _send_data(0x17)
+    _send_data(0x17)
+    _send_data(0x17)                  #07 0f 17 1f 27 2F 37 2f
+    _send_command(POWER_ON)
+    _wait_until_idle()
+    _send_command(PANEL_SETTING)
+    _send_data(0xbf) # KW-BF   KWR-AF  BWROTP 0f
+    _send_data(0x0b)
+    _send_command(PLL_CONTROL)
+    _send_data(0x3c) # 3A 100HZ   29 150Hz 39 200HZ  31 171HZ
+    _send_command(RESOLUTION_SETTING)
+    _send_data(width >> 8)        
+    _send_data(width & 0xff)
+    _send_data(height >> 8)
+    _send_data(height & 0xff)
+    _send_command(VCM_DC_SETTING)
+    _send_data(0x12)                   
+    _send_command(VCOM_AND_DATA_INTERVAL_SETTING)
+    _send_command(0x97)    #VBDF 17|D7 VBDW 97  VBDB 57  VBDF F7  VBDW 77  VBDB 37  VBDR B7
+
+def clear():
+    for i in range(len(_buffer)):
+        _buffer[i] = 0xFF
+    _display_buffer()
         
-    def set_lut(self, lut):
-        for i in range(len(lut)):
-            self.send_command(LUT_FOR_VCOM + i)
-            table = lut[i]
-            for j in range(len(table)):
-                self.send_data(table[j])
+def show_image(image, fast=False):
+    # Set buffer to value of Python Imaging Library image.
+    # Image must be in mode 1.
+    image_monocolor = image.convert('1')
+    w, h = image_monocolor.size
+    if w != width or h != height:
+        raise ValueError('Image must be same dimensions as display ({0}x{1}).' .format(width, height))
+    pixels = image_monocolor.load()
+    bit = 0x80
+    byte = 0
+    for y in range(height):
+        for x in range(width):
+            if pixels[x, y]:
+                _buffer[byte] |= bit
+            else:
+                _buffer[byte] &= ~bit
+            if bit == 0x01:
+                bit = 0x80
+                byte += 1
+            else:
+                bit >>= 1
+    _display_buffer(fast=fast)
 
-    def show(self, image, fast=False):
-        # Set buffer to value of Python Imaging Library image.
-        # Image must be in mode 1.
-        image_monocolor = image.convert('1')
-        w, h = image_monocolor.size
-        if w != self.width or h != self.height:
-            raise ValueError('Image must be same dimensions as display ({0}x{1}).' .format(self.width, self.height))
-        pixels = image_monocolor.load()
-        bit = 0x80
-        byte = 0
-        for y in range(self.height):
-            for x in range(self.width):
-                if pixels[x, y]:
-                    self.buffer[byte] |= bit
-                else:
-                    self.buffer[byte] &= ~bit
-                if bit == 0x01:
-                    bit = 0x80
-                    byte += 1
-                else:
-                    bit >>= 1
-        self.display_buffer(fast=fast)
-
-    def display_buffer(self, fast=False):
-        if fast:
-            self.set_lut(REFRESH_FAST)
-        else:
-            self.set_lut(REFRESH_DEFAULT)
-        self.send_command(DATA_START_TRANSMISSION_1)
-        for i in range(0, int(self.width * self.height / 8)):
-            self.send_data(0xFF)       # bit set: white, bit reset: black
-        self.sleep_ms(2)
-        self.send_command(DATA_START_TRANSMISSION_2) 
-        for i in range(0, int(self.width * self.height / 8)):
-            self.send_data(self.buffer[i])
-        self.sleep_ms(2)
-        self.send_command(DISPLAY_REFRESH)
-        if not fast:
-            self.sleep_ms(100)
-            self.wait_until_idle()
+_init()
