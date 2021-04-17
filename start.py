@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import camera
 import display
 import time
