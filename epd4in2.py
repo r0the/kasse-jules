@@ -162,28 +162,23 @@ REFRESH_FAST = [
     ]
 ]
 
-_buffer = None
-_spi = None
+# initialise serial peripheral interface
+_spi = spidev.SpiDev(0, 0)
+_spi.max_speed_hz = 2000000
+_spi.mode = 0b00
+
+# initialise additional pins
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+GPIO.setup(BUSY_PIN, GPIO.IN)
+GPIO.setup(CS_PIN, GPIO.OUT)
+GPIO.setup(DC_PIN, GPIO.OUT)
+GPIO.setup(RESET_PIN, GPIO.OUT)
+
+# initialise screen size and buffer
 width = 400
 height = 300
-
-def _init():
-    global _buffer
-    global _spi
-    global width
-    global height
-    _spi = spidev.SpiDev(0, 0)
-    _spi.max_speed_hz = 2000000
-    _spi.mode = 0b00
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
-    GPIO.setup(BUSY_PIN, GPIO.IN)
-    GPIO.setup(CS_PIN, GPIO.OUT)
-    GPIO.setup(DC_PIN, GPIO.OUT)
-    GPIO.setup(RESET_PIN, GPIO.OUT)
-    width = 400
-    height = 300
-    _buffer = [0] * (width * height // 8)
+_buffer = [0] * (width * height // 8)
 
 def _send_command(command):
     GPIO.output(DC_PIN, GPIO.LOW)
@@ -287,5 +282,3 @@ def show_image(image, fast=False):
             else:
                 bit >>= 1
     _display_buffer(fast=fast)
-
-_init()
