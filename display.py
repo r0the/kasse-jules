@@ -11,7 +11,7 @@ _draw = ImageDraw.Draw(_image)
 _font = ImageFont.truetype(DEFAULT_FONT, 36)
 
 def clear():
-    EPD.clear()
+    _draw.rectangle([0, 0, EPD.width - 1, EPD.height - 1], fill=1)
 
 def text(x, y, text):
     _draw.text((x, y), text, font=_font, fill=0)
