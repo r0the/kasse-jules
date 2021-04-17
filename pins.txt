@@ -1,0 +1,19 @@
+
+| Pin | RPi     | Connection |
+|:--- |:------- |:---------- |
+| 8   | GPIO 14 | KBD row 2  |
+| 10  | GPIO 15 | KBD row 3  |
+| 11  | GPIO 17 | KBD col 1  |
+| 12  | GPIO 18 | KBD col 3  |
+| 13  | GPIO 27 | KBD row 1  |
+| 14  | GND     |            |
+| 15  | GPIO 22 | KBD col 2  |
+| 16  | GPIO 23 | KBD row 4  |
+| 17  | 3V3     | EPD VCC    |
+| 18  | GPIO 24 | EPD BUSY   |
+| 19  | MOSI    | EPD DIN    |
+| 20  | GND     | EPD GND    |
+| 21  | SCLK    | EPD CLK    |
+| 22  | GPIO 25 | EPD DC     |
+| 24  | GPIO 8  | EPD CS     |
+| 26  | GPIO 7  | EPD RST    |
