@@ -4,7 +4,11 @@ import PIL.Image
 
 RESOLUTION = (640, 480)
 
-_camera = picamera.PiCamera();
+try:
+    _camera = picamera.PiCamera()
+except:
+    _camera = None
+
 #_camera.color_effects = (128, 128)
 _camera.resolution = RESOLUTION
 #_camera.start_preview()
