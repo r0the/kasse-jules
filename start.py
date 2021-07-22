@@ -112,7 +112,7 @@ def take_picture():
 def basket():
     if not len(basket_items):
         select_item()
-    show_items(basket_items, "Warenkorb")
+#    show_items(basket_items, "Warenkorb")
     while True:
         keypad.poll()
         for key in keypad.pressed():
